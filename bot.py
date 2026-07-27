@@ -3,6 +3,7 @@ import os
 import re
 import requests
 import telebot
+import urllib.parse
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -10,17 +11,17 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Ultra-stable Base64 Encoded Free VPN Subscription Link
+# Ultra-stable Base64 & URL Encoded Free VPN Link
 FREE_VPN_URL = "https://githubusercontent.com"
 
 def fetch_free_configs():
-    """Fetches base64 encoded configs, decodes them, and extracts vmess:// links"""
+    """Fetches configs, handles Base64, URL decoding, and extracts valid vmess links"""
     try:
         response = requests.get(FREE_VPN_URL, timeout=15, verify=False)
         if response.status_code == 200:
             raw_text = response.text.strip()
             
-            # Base64 Decoding Process with padding correction
+            # 1. First step: Handle Base64 Padding and Decode
             missing_padding = len(raw_text) % 4
             if missing_padding:
                 raw_text += '=' * (4 - missing_padding)
@@ -28,8 +29,11 @@ def fetch_free_configs():
             decoded_bytes = base64.b64decode(raw_text)
             decoded_text = decoded_bytes.decode('utf-8', errors='ignore')
             
-            # Extract all decoded vmess:// configurations using Regular Expression
-            vmess_links = re.findall(r'(vmess://[^\s]+)', decoded_text)
+            # 2. Second step: URL Decode to fix %3A%2F%2F into ://
+            final_text = urllib.parse.unquote(decoded_text)
+            
+            # 3. Third step: Extract all clean vmess:// configurations
+            vmess_links = re.findall(r'(vmess://[^\s]+)', final_text)
             return vmess_links
     except Exception as e:
         print(f"Error fetching/decoding configs: {e}")
@@ -53,8 +57,8 @@ def send_vpn(message):
     configs = fetch_free_configs()
     
     if configs and len(configs) > 0:
-        # Pick the very first active decrypted vmess:// link from the list
-        premium_config = configs
+        # Pick the very first active decrypted clean vmess:// link from the list
+        premium_config = configs[0]
         
         success_text = (
             "✅ Server Generated Successfully!\n\n"
@@ -67,5 +71,5 @@ def send_vpn(message):
         bot.reply_to(message, "❌ Sorry, servers are temporarily down. Please try again later.")
 
 if __name__ == "__main__":
-    print("VPN Server Bot is successfully running with Base64 Decoder...")
+    print("VPN Server Bot is successfully running with URL unquote mechanism...")
     bot.infinity_polling()
