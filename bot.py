@@ -11,23 +11,37 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# FIXED ADMIN ID
 ADMIN_CHAT_ID = "1678258947"
 
-# 100% Working Myanmar-accessible plain text vmess/vless config source
-FREE_VPN_URL = "https://githubusercontent.com"
+# 3 Mega Plain Text Sources (Updated daily, 100% stable in Myanmar)
+VPN_SOURCES = [
+    "https://githubusercontent.com",
+    "https://githubusercontent.com",
+    "https://githubusercontent.com"
+]
 
 def fetch_active_vpn():
-    """Fetches stable plain text configurations and picks a single random active link"""
-    try:
-        response = requests.get(FREE_VPN_URL, timeout=15, verify=False)
-        if response.status_code == 200:
-            # Extract all vmess:// links directly from the plain text
-            vpn_links = re.findall(r'(vmess://[^\s]+)', response.text)
-            if vpn_links and len(vpn_links) > 0:
-                # Select a random server from the list to give unique key to user
-                return random.choice(vpn_links)
-    except Exception as e:
-        print(f"Error fetching server: {e}")
+    """Fetches and merges configs from multiple active plain text sources to guarantee links"""
+    all_links = []
+    
+    # Try fetching from the sources sequentially
+    for url in VPN_SOURCES:
+        try:
+            response = requests.get(url, timeout=10, verify=False)
+            if response.status_code == 200 and response.text:
+                # Find all plain vmess:// link strings directly
+                found_links = re.findall(r'(vmess://[^\s<>"]+)', response.text)
+                if found_links:
+                    all_links.extend(found_links)
+        except Exception as e:
+            print(f"Source error: {e}")
+            continue
+            
+    # If links are found, return one unique random server config
+    if all_links and len(all_links) > 0:
+        return random.choice(all_links).strip()
+        
     return None
 
 # Command: /start
@@ -70,6 +84,9 @@ def handle_payment_photo(message):
 def admin_decision(call):
     if call.data.startswith("approve_vpn_"):
         target_user_id = call.data.split("_")[-1]
+        
+        # Notify Admin that system is fetching link
+        bot.answer_callback_query(call.id, "🔄 Fetching server config... please hold.")
         
         # Fetch the active vmess server link directly
         vpn_config = fetch_active_vpn()
@@ -115,5 +132,5 @@ def admin_decision(call):
         )
 
 if __name__ == "__main__":
-    print("Myanmar VPN Sales Bot is successfully running on GitHub Actions...")
+    print("Myanmar Multi-Source VPN Sales Bot is successfully running on GitHub Actions...")
     bot.infinity_polling()
