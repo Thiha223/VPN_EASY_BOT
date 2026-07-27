@@ -1,39 +1,59 @@
 import os
+import re
+import requests
 import telebot
-from flask import Flask, request
 
-# 1. Initialize Bot
+# 1. Fetch Token from GitHub Secrets safely
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# 2. Initialize Flask Web Server for Render Free Tier
-app = Flask(__name__)
+# Public GitHub repository link that updates free V2Ray/VMess links daily
+FREE_VPN_URL = "https://githubusercontent.com"
 
-@app.route('/')
-def home():
-    return "Bot is alive!", 200
+def fetch_free_configs():
+    """Fetches free vmess configurations from public GitHub source"""
+    try:
+        response = requests.get(FREE_VPN_URL, timeout=10)
+        if response.status_code == 200:
+            # Extract all vmess:// configurations using Regular Expression
+            vmess_links = re.findall(r'(vmess://[^\s]+)', response.text)
+            return vmess_links
+    except Exception as e:
+        print(f"Error fetching configs: {e}")
+    return []
 
-# Webhook Endpoint for Telegram
-@app.route('/' + BOT_TOKEN, methods=['POST'])
-def getMessage():
-    json_string = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_string)
-    bot.process_new_updates([update])
-    return "!", 200
-
-# Bot commands
+# Command: /start
 @bot.message_handler(commands=['start'])
 def welcome(message):
-    bot.reply_to(message, "Welcome! This bot is hosted on Render Web Service Free Tier.")
+    welcome_text = (
+        "Welcome to VPN PRO Bot! 🇲🇲\n\n"
+        "Press /buy to get your high-speed Free VMess VPN configuration link instantly!"
+    )
+    bot.reply_to(message, welcome_text)
 
-# 3. Main runner
+# Command: /buy
+@bot.message_handler(commands=['buy'])
+def send_vpn(message):
+    bot.reply_to(message, "⚡ Fetching the best available server for you... Please wait.")
+    
+    # Get configuration links from GitHub
+    configs = fetch_free_configs()
+    
+    if configs and len(configs) > 0:
+        # Take the first available stable config link from the list
+        premium_config = configs[0]
+        
+        success_text = (
+            "✅ Server Generated Successfully!\n\n"
+            "Here is your Free VMess Config Link:\n"
+            f"`{premium_config}`\n\n"
+            "📌 *How to use:* Copy the link above and import it into v2rayNG or UTLoop application."
+        )
+        bot.reply_to(message, success_text, parse_mode="Markdown")
+    else:
+        bot.reply_to(message, "❌ Sorry, servers are temporarily down. Please try again later.")
+
 if __name__ == "__main__":
-    # Server configuration required by Render
-    PORT = int(os.environ.get('PORT', 5000))
-    
-    # Remove old webhooks and start polling for test
-    bot.remove_webhook()
-    print(f"Starting server on port {PORT}...")
-    
-    # Running Flask App
-    app.run(host="0.0.0.0", port=PORT)
+    print("VPN Server Bot is officially launched on GitHub Actions...")
+    # Start long-polling mechanism
+    bot.infinity_polling()
